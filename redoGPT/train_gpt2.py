@@ -384,6 +384,7 @@ if __name__ == '__main__':
             with torch.autocast(device_type=device,dtype=torch.bfloat16):
                 logits,loss = model(x,y)
             loss = loss / grad_accum_steps
+            loss_accum += loss.detach()
             loss.backward()
         norm = torch.nn.utils.clip_grad_norm_(model.parameters(),1.0)
 
@@ -394,10 +395,10 @@ if __name__ == '__main__':
         torch.cuda.synchronize()
         t1 = time.time()
         dt = (t1 - t0)*1000
+        tokens_processed = train_loader.B * train_loader.T * grad_accum_steps
+        tokens_per_sec = tokens_processed / dt
 
-        print(f"step {i},loss:{loss.item()},norm:{norm:.4f},lr:{lr:.4f},dt:{dt:.2f}ms")
-
-
+        print(f"step {step:4d},loss:{loss.item()},norm:{norm:.4f},lr:{lr:.4f},dt:{dt:.2f}ms")
 
     # eval
     model.eval()
