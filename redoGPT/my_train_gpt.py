@@ -19,9 +19,6 @@ class GPTConfig:
     n_head:int = 12
     n_embd:int = 768
 
-
-
-
 class CausalSelfAttention(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -393,7 +390,7 @@ if __name__ == '__main__':
     # optimize
     # optimizer = torch.optim.AdamW(model.parameters(),lr=3e-4,betas=(0.9,0.95),eps=1e-8)
     optimizer = model.configure_optimizers(weight_decay = 0.1, learning_rate = 6e-4 ,device = device)
-    
+
     for step in range(max_steps):
         t0 = time.time()
         optimizer.zero_grad()
@@ -420,8 +417,25 @@ if __name__ == '__main__':
 
         print(f"step {step:4d},loss:{loss.item()},norm:{norm:.4f},lr:{lr:.4f},dt:{dt:.2f}ms")
 
+
+    # ===================== 训练结束，保存模型 =====================
+    print("="*50)
+    print("训练完成！正在保存模型...")
+    
+    # 保存路径
+    save_path = "gpt_trained_model.pth"
+    
+    # 保存：模型权重 + 配置 + 优化器（可选）
+    torch.save({
+        "model_state_dict": model.state_dict(),  # 模型权重
+        "config": model.config,                  # 模型配置
+        "optimizer_state_dict": optimizer.state_dict(),  # 优化器（可用于继续训练）
+        "step": max_steps,                       # 训练步数
+    }, save_path)
+    
+    print(f"模型已保存到：{save_path}")
+    print("保存完成！")
+
     # eval
     model.eval()
-
-    
     # test(model,num_return_sequences,max_length)
