@@ -353,9 +353,75 @@ def get_lr(it):
     return min_lr + coeff * (max_lr - min_lr)
 
 
+# ===================== 加载模型 + 测试生成 =====================
+def generate_from_pth(pth_path="gpt_trained_model.pth", prompt="Hello, I'm a language model,", num_return_sequences=3, max_length=50):
+    """
+    从保存的 pth 文件加载模型，并生成文本
+    已修复 torch.compile 带来的 _orig_mod 前缀问题
+    """
+    # 1. 检测设备
+    device = detectDevice()
 
+    # 2. 加载 checkpoint（修复警告 + 加载权重）
+    print(f"正在加载模型：{pth_path}")
+    checkpoint = torch.load(pth_path, map_location=device, weights_only=False)
+
+    # 3. 【关键修复】去掉 _orig_mod. 前缀！！！
+    from collections import OrderedDict
+    fixed_state_dict = OrderedDict()
+    for k, v in checkpoint["model_state_dict"].items():
+        new_key = k.replace("_orig_mod.", "")  # 删掉前缀
+        fixed_state_dict[new_key] = v
+
+    # 4. 重建模型 + 加载修复后的权重
+    model = GPT(checkpoint["config"])
+    model.load_state_dict(fixed_state_dict)
+    model.to(device)
+    model.eval()
+    print("模型加载成功！")
+
+    # 5. 编码 prompt
+    enc = tiktoken.get_encoding('gpt2')
+    tokens = enc.encode(prompt)
+    tokens = torch.tensor(tokens, dtype=torch.long)
+    tokens = tokens.unsqueeze(0).repeat(num_return_sequences, 1)
+    x = tokens.to(device)
+
+    # 6. 生成
+    torch.manual_seed(1337)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(1337)
+
+    with torch.no_grad():
+        while x.size(1) < max_length:
+            logits, _ = model(x)
+            logits = logits[:, -1, :]
+            probs = F.softmax(logits, dim=-1)
+            topk_probs, topk_indices = torch.topk(probs, 50, dim=-1)
+            ix = torch.multinomial(topk_probs, 1)
+            xcol = torch.gather(topk_indices, -1, ix)
+            x = torch.cat((x, xcol), dim=1)
+
+    # 7. 打印结果
+    print("\n" + "="*50)
+    print(f"输入提示：{prompt}")
+    print("="*50)
+    for i in range(num_return_sequences):
+        tokens = x[i, :max_length].tolist()
+        decoded = enc.decode(tokens)
+        print(f"\n【生成结果 {i+1}】")
+        print(decoded)
 
 if __name__ == '__main__':
+
+    generate_from_pth(
+        pth_path="gpt_trained_model.pth",
+        prompt="Hello, I'm a language model,",
+        num_return_sequences=3,
+        max_length=60
+    )
+    import sys; sys.exit()
+
 
     device = detectDevice()
 
