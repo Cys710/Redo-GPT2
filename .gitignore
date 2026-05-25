@@ -38,6 +38,7 @@ lightning_logs/
 # -----------------------------------------
 data/
 dataset/
+edu_fineweb1B/
 *.csv
 *.json
 *.h5
