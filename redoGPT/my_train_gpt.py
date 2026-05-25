@@ -9,6 +9,7 @@ import os
 os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 import time
 import inspect
+import numpy as np
 
 @dataclass
 class GPTConfig:
@@ -251,22 +252,37 @@ def detectDevice():
     print(f"using device: {device}")
     return device
 
+def load_tokens(filename):
+    npt = np.load(filename)
+    ptt = torch.tensor(npt,dtype=torch.long)
+    return ptt
+
 class DataLoaderLite:
-    def __init__(self, B, T):
+    def __init__(self, B, T,split):
         self.B = B
         self.T = T
-
         # at init load tokens from disk and store them in memory
-        with open('input.txt', 'r') as f:
-            text = f.read()
-        enc = tiktoken.get_encoding('gpt2')
-        tokens = enc.encode(text)
-        self.tokens = torch.tensor(tokens)
-        print(f"loaded {len(self.tokens)} tokens")
-        print(f"1 epoch = {len(self.tokens) // (B * T)} batches")
+        # with open('input.txt', 'r') as f:
+        #     text = f.read()
+        # enc = tiktoken.get_encoding('gpt2')
+        # tokens = enc.encode(text)
+        # self.tokens = torch.tensor(tokens)
+        # print(f"loaded {len(self.tokens)} tokens")
+        # print(f"1 epoch = {len(self.tokens) // (B * T)} batches")
+
+        data_root = "edu_fineweb1B"
+        shards = os.listdir(data_root)
+        shards = [s for s in shards if split in s]
+        shards = sorted(shards)
+        shards = [os.path.join(data_root, s) for s in shards]
+        self.shards = shards
+        print(f"found {len(shards)} shards for split {split}")
 
         # state
-        self.current_position = 0
+        # self.current_position = 0
+        self.current_shard = 0
+        self.tokens = load_tokens(self.shards[self.current_shard])
+        self.current_position = self.B * self.T
 
     def next_batch(self):
         B, T = self.B, self.T
@@ -277,7 +293,10 @@ class DataLoaderLite:
         self.current_position += B * T
         # if loading the next batch would be out of bounds, reset
         if self.current_position + (B * T + 1) > len(self.tokens):
-            self.current_position = 0
+            # self.current_position = 0
+            self.current_shard = (self.current_shard+1) % len(self.shards)
+            self.tokens = load_tokens(self.shards[self.current_shard])
+            self.current_position = self.B * self.T
         return x, y
 
 # makeTest
@@ -320,8 +339,8 @@ def test(model,num_return_sequences,max_length):
 
 max_lr = 6e-4
 min_lr = max_lr * 0.1
-warmup_steps = 10
-max_steps = 50
+warmup_steps = 72
+max_steps = 1908
 
 def get_lr(it):
     # 1) linear warmup for warmup_steps steps
@@ -360,7 +379,7 @@ if __name__ == '__main__':
     print(f"total desired batch size: {total_batch_size}")
     print(f"=> calculated gradient accumulation steps: {grad_accum_steps}")
 
-    train_loader = DataLoaderLite(B = B,T = T)
+    train_loader = DataLoaderLite(B = B,T = T,split='train')
     # train_loader = DataLoaderLite(B = 16,T = 1024)
 
     torch.set_float32_matmul_precision('high')
