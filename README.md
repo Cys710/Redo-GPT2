@@ -56,3 +56,6 @@ python train.py
 ## 说明
 
 这个项目更适合作为学习记录。先从简单模型开始，再逐步写到 Transformer 和 GPT-2 结构。
+
+以下为一个训练结果，由于GPU的限制，我们使用了10TB数据中的1/10内容，缩减到了1900轮次，小规模数据训练结果稍显不佳。
+<img width="1237" height="579" alt="image" src="https://github.com/user-attachments/assets/b4a7269f-6d1a-43f9-ad4c-06f4ed58d90f" />
